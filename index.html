@@ -208,7 +208,54 @@ function isPremium(){return cfg.premium!==false}
 function paywall(t){openModal(`<h2>⭐ Función Premium</h2><p>${t} es una función opcional de pago.</p><p class="small">Premium incluye: lista del día con foto o texto, resumen de jornada, historial, copiar y PDF del parte, y manos libres por voz. Lo básico (cronómetro, tiempos de empresa y parte de hoy) es gratis.</p><p class="small">Todavía no se cobra: puedes usarlo en modo prueba desde Ajustes.</p><button class="primary" style="width:100%" onclick="closeModal()">Entendido</button>`)}
 function go(v,pop){if(!active&&v!=='home')workOpen=false;if(v==='resumen'&&!isPremium())return paywall('El resumen de jornada con sus totales');if(v==='lista'&&!isPremium())return paywall('Cargar el parte con foto o texto');if(v==='historial'&&!isPremium())return paywall('El historial por fechas');if(!pop&&v!==curView)history.pushState({v},'');curView=v;document.body.classList.toggle('vhome',v==='home');checkPending();ALLV.forEach(id=>{const e=$(id);if(e)e.style.display=VIEWS[v].includes(id)?'block':'none'});$('n_home').classList.toggle('on',v==='home');$('n_hist').classList.toggle('on',v==='historial');if(v==='historial')renderHist();window.scrollTo(0,0)}
 function renderHist(){const ks=Object.keys(localStorage).filter(k=>/^hp_\d{4}-\d{2}-\d{2}$/.test(k)).sort().reverse();$('histList').innerHTML=ks.length?ks.map(k=>{const rs=L(k)||[],rt=rs.reduce((a,r)=>a+r.real,0),st=rs.reduce((a,r)=>a+stdOf(r),0),f=new Date(k.slice(3)+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});return `<button class="secondary" style="width:100%;text-align:left;margin:6px 0;padding:14px" onclick="openDay('${k}')"><b>${f}</b><br><span class="small">${rs.length} habitaciones · previsto ${fm(st)} · real ${fm(rt)}</span></button>`}).join(''):'<p class="small">Aún no hay jornadas guardadas.</p>'}
-function openDay(k){const rs=L(k)||[];openModal(`<h2>${esc(k.slice(3))}</h2>${rs.map(r=>`<div class="item"><div class="top"><span class="room">${esc(r.room)}</span><span class="pill">${esc(r.ctype)}</span><span class="pill">${esc(r.status)}</span></div><div class="meta"><span>${esc(r.time)} → ${esc(r.end)}</span><span>Real ${fm(r.real)}</span></div>${r.note?`<div class="note">📝 ${esc(r.note)}</div>`:''}</div>`).join('')||'<p>Sin habitaciones.</p>'}<button class="primary" style="width:100%;margin-top:10px" onclick="closeModal()">Cerrar</button>`)}
+function openDay(k){const rs=L(k)||[];openModal(`<h2>${esc(k.slice(3))}</h2>${rs.map(r=>`<div class="item"><div class="top"><span class="room">${esc(r.room)}</span><span class="pill">${esc(r.ctype)}</span><span class="pill">${esc(r.status)}</span></div><div class="meta"><span>${esc(r.time)} → ${esc(r.end)}</span><span>Real ${fm(r.real)}</span></div>${r.note?`<div class="note">📝 ${esc(r.note)}</div>`:''}</div>`).join('')||'<p>Sin habitaciones.</p>'}${rs.length?`<div class="row" style="margin-top:10px"><button class="secondary" onclick="histPdf('${k}','download')">📄 Descargar PDF</button><button class="secondary" onclick="histPdf('${k}','share')">📤 Compartir</button></div><div class="small" style="text-align:center;margin-top:4px">⭐ Opción Premium</div>`:''}<button class="primary" style="width:100%;margin-top:10px" onclick="closeModal()">Cerrar</button>`)}
+function pdfEnc(t){const M={'—':0x97,'–':0x96,'·':0xB7,'“':0x93,'”':0x94,'‘':0x91,'’':0x92,'…':0x85,'•':0x95,'−':45,'→':62};let o='';for(const ch of String(t)){const c=ch.codePointAt(0);let b;if(c>=32&&c<127)b=c;else if(c>=160&&c<=255)b=c;else if(M[ch]!==undefined)b=M[ch];else continue;o+=String.fromCharCode(b)}return o.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)')}
+function buildDayPdf(k){
+const rs=L(k)||[],st=rs.reduce((a,r)=>a+stdOf(r),0),rt=rs.reduce((a,r)=>a+r.real,0),ot=Math.max(0,rt-cfg.contract*3600);
+const fecha=new Date(k.slice(3)+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const pages=[];let ops,y;
+const T=(x,yy,size,bold,txt)=>ops.push('BT /'+(bold?'F2':'F1')+' '+size+' Tf '+x+' '+yy+' Td ('+pdfEnc(txt)+') Tj ET');
+const LN=(yy)=>ops.push('0.6 w 40 '+yy+' m 555 '+yy+' l S');
+const cut=(t,n)=>{t=String(t==null?'':t);return t.length>n?t.slice(0,n-1)+'.':t};
+const X=[40,104,152,252,316,376,436];
+const head=()=>{['Hab.','Tipo','Limpieza','Horario','Previsto','Real','Estado'].forEach((h,i)=>T(X[i],y,9,1,h));y-=4;LN(y);y-=14};
+const np=()=>{ops=[];pages.push(ops);y=800;if(pages.length===1){T(40,y,20,1,'Parte de trabajo');y-=22;
+T(40,y,10,0,'Trabajadora: '+(profile.name||'-')+(profile.userId?' (ID '+profile.userId+')':''));y-=14;
+T(40,y,10,0,'Empresa / lugar: '+(profile.place||'-'));y-=14;
+T(40,y,10,0,'Fecha: '+fecha);y-=14;
+T(40,y,10,0,'Jornada por contrato: '+fm(cfg.contract*3600));y-=24}head()};
+np();
+rs.forEach(r=>{if(y<90){np()}
+T(X[0],y,9,0,cut(r.room,14));T(X[1],y,9,0,isCommon(r.ctype)?'':cut(r.rtype,11));T(X[2],y,9,0,cut(r.ctype,22));
+T(X[3],y,9,0,cut((r.time||'')+'-'+(r.end||''),12));T(X[4],y,9,0,r.status==='Hecha'?fm(r.standard*60):'-');T(X[5],y,9,0,fm(r.real));
+T(X[6],y,9,0,r.status==='Hecha'?'Hecha':r.status==='Imposible'?'Sin limpieza':'Por acabar');y-=13;
+if(r.note){const w=String(r.note).match(/.{1,105}(\s|$)/g)||[String(r.note)];w.slice(0,4).forEach(l=>{if(y<70)np();T(X[0]+8,y,8,0,'Nota: '+l.trim());y-=11})}
+y-=3});
+if(y<110)np();
+LN(y+8);y-=8;T(X[0],y,10,1,'TOTAL ('+rs.length+' habitaciones)');T(X[4],y,10,1,fm(st));T(X[5],y,10,1,fm(rt));y-=22;
+T(40,y,10,0,'Diferencia: '+(rt-st>=0?'+':'-')+fm(Math.abs(rt-st))+'     Tiempo sobre jornada: '+fm(ot));
+pages.forEach((p,i)=>{ops=p;T(40,28,8,0,'Yokely - Registro personal complementario. No sustituye el sistema oficial de la empresa.   Pagina '+(i+1)+' de '+pages.length)});
+const objs=['<< /Type /Catalog /Pages 2 0 R >>',null,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'];
+const kids=[];
+pages.forEach(p=>{const c=p.join('\n'),pi=objs.length+1,ci=objs.length+2;kids.push(pi+' 0 R');
+objs.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents '+ci+' 0 R >>');
+objs.push('<< /Length '+c.length+' >>\nstream\n'+c+'\nendstream')});
+objs[1]='<< /Type /Pages /Kids ['+kids.join(' ')+'] /Count '+pages.length+' >>';
+let out='%PDF-1.4\n';const off=[];objs.forEach((o,i)=>{off.push(out.length);out+=(i+1)+' 0 obj\n'+o+'\nendobj\n'});
+const xr=out.length;out+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n'+off.map(o=>String(o).padStart(10,'0')+' 00000 n \n').join('')+'trailer\n<< /Size '+(objs.length+1)+' /Root 1 0 R >>\nstartxref\n'+xr+'\n%%EOF';
+const u=new Uint8Array(out.length);for(let i=0;i<out.length;i++)u[i]=out.charCodeAt(i)&255;return u}
+async function histPdf(k,mode){
+if(!isPremium())return paywall('Descargar o compartir el parte en PDF');
+const rs=L(k)||[];if(!rs.length)return alert('Este día no tiene habitaciones.');
+const name='Parte-'+k.slice(3)+'.pdf';let bytes;
+try{bytes=buildDayPdf(k)}catch(e){return alert('No he podido crear el PDF.')}
+const blob=new Blob([bytes],{type:'application/pdf'});
+if(mode==='share'){
+try{const f=new File([blob],name,{type:'application/pdf'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Parte de trabajo '+k.slice(3)});return}}catch(e){if(e&&e.name==='AbortError')return}
+alert('Este navegador no permite compartir archivos. Se descargará el PDF en tu carpeta de descargas.')}
+else if(window.showSaveFilePicker){
+try{const h=await showSaveFilePicker({suggestedName:name,types:[{description:'PDF',accept:{'application/pdf':['.pdf']}}]});const w=await h.createWritable();await w.write(blob);await w.close();return}catch(e){if(e&&e.name==='AbortError')return}}
+const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
 function homeUI(){const e=$('homeInfo');if(!e)return;const ok=records.filter(r=>r.status==='Hecha').length;e.innerHTML='Hoy: <b>'+ok+'</b> habitaciones hechas'+(queue.length?' · <b>'+queue.length+'</b> pendientes en la lista':'')}
 function stdOf(r){return r.status==='Hecha'?r.standard*60:0}
 function timeAlerts(){homeUI();$('vBtn').textContent='🎤 Manos libres: '+(handsFree?'activado'+(lastHeard?' · “'+lastHeard.slice(0,26)+'”':''):'apagado');const mb=$('miniBar');if(!active){mb.style.background='';return}const std=active.standard*60,e=elapsed(),r=e/std;mb.style.background=r>=1?'#b42323':r>=.9?'#c0392b':r>=.75?'#9a6a10':'';if(active.paused)return;
