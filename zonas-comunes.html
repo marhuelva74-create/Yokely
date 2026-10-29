@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zonas comunes</title>
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--ink:#222;--muted:#777;--line:#ddd;--ok:#2e7d32;--no:#c62828;--acc:#8a6d3b}
+@media (prefers-color-scheme:dark){:root{--bg:#1c1c1e;--card:#2a2a2d;--ink:#f2f2f2;--muted:#aaa;--line:#444;--acc:#c9a86a}}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:560px;margin:0 auto;padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px))}
+h1{font-size:22px;margin:4px 0 2px;letter-spacing:.5px}
+.sub{color:var(--muted);font-size:14px;margin-bottom:16px;text-transform:capitalize}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.lbl{display:block;font-size:13px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
+.time{display:flex;align-items:center;gap:8px;font-size:18px;flex-wrap:wrap}
+input[type=number]{width:76px;font-size:18px;padding:8px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);text-align:center}
+input[type=text]{flex:1;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);min-width:0}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none}
+.st{width:46px;height:46px;border-radius:10px;border:2px solid var(--line);background:transparent;font-size:22px;font-weight:700;color:var(--ink);cursor:pointer;flex:0 0 auto}
+.st.ok{color:var(--ok);border-color:var(--ok)}
+.st.no{color:var(--no);border-color:var(--no)}
+.name{flex:1;font-size:16px;word-break:break-word}
+.name.ok{text-decoration:line-through;color:var(--muted)}
+.del{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:6px}
+.add{display:flex;gap:8px;margin-top:12px}
+button.btn{font-size:16px;padding:10px 14px;border-radius:10px;border:1px solid var(--acc);background:var(--acc);color:#fff;cursor:pointer}
+button.ghost{background:transparent;color:var(--acc)}
+.legend{font-size:13px;color:var(--muted);margin-top:10px}
+.empty{color:var(--muted);font-size:14px;padding:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ZONAS COMUNES</h1>
+  <div class="sub" id="fecha"></div>
+
+  <div class="card">
+    <span class="lbl">Tiempo</span>
+    <div class="time">
+      <input type="number" id="th" min="0" max="23" inputmode="numeric" placeholder="__"> h
+      <input type="number" id="tm" min="0" max="59" inputmode="numeric" placeholder="__"> m
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="lbl">Zonas específicas a limpiar</span>
+    <div id="lista"></div>
+    <div class="add">
+      <input type="text" id="nueva" placeholder="Ej.: Escaleras de la 4ª planta" autocomplete="off">
+      <button class="btn" id="btnAdd">Añadir</button>
+    </div>
+    <div class="legend">Toca el cuadro para cambiarlo: ☐ pendiente · ✓ hecha · ✗ no se hace</div>
+  </div>
+
+  <div class="card">
+    <button class="btn ghost" id="btnClear">Borrar lista de hoy</button>
+  </div>
+</div>
+
+<script>
+const hoy = new Date();
+const KEY = 'zc_' + hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
+const ESTADOS = ['', 'ok', 'no'];
+const SIMBOLO = { '': '☐', 'ok': '✓', 'no': '✗' };
+
+let data = { tiempo: { h: '', m: '' }, zonas: [] };
+
+function cargar() {
+  try {
+    const r = localStorage.getItem(KEY);
+    if (r) data = JSON.parse(r);
+  } catch (e) { /* sin almacenamiento disponible: la página funciona igual, sin guardar */ }
+}
+
+function guardar() {
+  try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+}
+
+function render() {
+  const L = document.getElementById('lista');
+  L.innerHTML = '';
+  if (!data.zonas.length) {
+    const v = document.createElement('div');
+    v.className = 'empty';
+    v.textContent = 'Todavía no hay zonas. Escríbelas abajo.';
+    L.appendChild(v);
+    return;
+  }
+  data.zonas.forEach((z, i) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    const b = document.createElement('button');
+    b.className = 'st ' + z.e;
+    b.textContent = SIMBOLO[z.e];
+    b.setAttribute('aria-label', 'Cambiar estado de ' + z.t);
+    b.onclick = () => {
+      z.e = ESTADOS[(ESTADOS.indexOf(z.e) + 1) % ESTADOS.length];
+      guardar();
+      render();
+    };
+
+    const n = document.createElement('div');
+    n.className = 'name ' + z.e;
+    n.textContent = z.t;
+
+    const d = document.createElement('button');
+    d.className = 'del';
+    d.textContent = '✕';
+    d.setAttribute('aria-label', 'Quitar ' + z.t);
+    d.onclick = () => {
+      if (confirm('¿Quitar "' + z.t + '" de la lista?')) {
+        data.zonas.splice(i, 1);
+        guardar();
+        render();
+      }
+    };
+
+    row.append(b, n, d);
+    L.appendChild(row);
+  });
+}
+
+function anadir() {
+  const inp = document.getElementById('nueva');
+  const t = inp.value.trim();
+  if (!t) return;
+  data.zonas.push({ t: t, e: '' });
+  inp.value = '';
+  guardar();
+  render();
+  inp.focus();
+}
+
+const th = document.getElementById('th');
+const tm = document.getElementById('tm');
+
+function cambiarTiempo() {
+  data.tiempo = { h: th.value, m: tm.value };
+  guardar();
+}
+
+cargar();
+
+document.getElementById('fecha').textContent =
+  hoy.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+th.value = data.tiempo.h;
+tm.value = data.tiempo.m;
+th.oninput = cambiarTiempo;
+tm.oninput = cambiarTiempo;
+tm.onchange = () => {
+  if (tm.value !== '') {
+    const v = Math.min(59, Math.max(0, parseInt(tm.value, 10) || 0));
+    tm.value = String(v).padStart(2, '0');
+  }
+  cambiarTiempo();
+};
+
+document.getElementById('btnAdd').onclick = anadir;
+document.getElementById('nueva').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); anadir(); }
+});
+document.getElementById('btnClear').onclick = () => {
+  if (confirm('¿Borrar toda la lista de zonas de hoy?')) {
+    data.zonas = [];
+    guardar();
+    render();
+  }
+};
+
+render();
+</script>
+</body>
+</html>
